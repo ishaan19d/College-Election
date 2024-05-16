@@ -58,6 +58,7 @@ DEPARTMENT_CHOICES_PHD = [
     ('HSS', 'HSS'),
     ('S&M', 'S&M'),
 ]
+
 class PhD(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=50)
     middle_name = models.CharField(max_length=50, blank=True)
@@ -65,14 +66,14 @@ class PhD(AbstractBaseUser, PermissionsMixin):
     roll_number = models.CharField(max_length=20, unique=True)
     email = models.EmailField(unique=True)
     course = 'PhD'
+    ongoing = models.BooleanField(default=True)
     department = models.CharField(max_length=4, choices=DEPARTMENT_CHOICES_PHD)
-    graduating_year = models.PositiveIntegerField()
     photo = models.ImageField(upload_to='profile_photos', blank=True, null=True)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name', 'roll_number', 'course', 'department', 'graduating_year']
+    REQUIRED_FIELDS = ['first_name', 'last_name', 'roll_number', 'course', 'department']
 
     groups = models.ManyToManyField(
         'auth.Group',
