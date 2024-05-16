@@ -20,5 +20,6 @@ from django.urls import path,include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('account/', include('account.api.urls')),
+    path('voting/', include('voting.api.urls')),
     path('api-auth/',include('rest_framework.urls')),
 ]
