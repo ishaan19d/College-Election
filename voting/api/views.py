@@ -43,21 +43,9 @@ class NominateView(APIView):
         return Response({'message': 'You have successfully nominated yourself.'}, status=status.HTTP_201_CREATED)
     
 class NominationListViewP(APIView):
-    def get(self, request, post):
+    def get(self, request):
         try:
-            if(post == 'p'):
-                position = 'President'
-            elif(post == 'vp'):
-                position = 'Vice President'
-            elif(post == 'gsc'):
-                position = 'General Secretary - Cultural Board'
-            elif(post == 'gst'):
-                position = 'General Secretary - Technical Board'
-            elif(post == 'gss'):
-                position = 'General Secretary - Sports Board'
-            else:
-                return Response({'error': 'Invalid position.'}, status=status.HTTP_400_BAD_REQUEST)
-            candidates = ContestingCandidate.objects.filter(position=position)
+            candidates = ContestingCandidate.objects.order_by('position')
             serialized_candidates = ContestingCandidateListSerializer(candidates, many=True)
             return Response(serialized_candidates.data, status=status.HTTP_200_OK)
         except Exception as e:
