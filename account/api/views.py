@@ -123,31 +123,22 @@ class StudentLoginView(TokenViewBase):
         email = request.data.get('email')
         password = request.data.get('password')
         student = Student.objects.filter(email=email).first()
-
-        if student is None or not student.check_password(password):
-            return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
-        token = RefreshToken()
-        token_payload = {
-            'email': student.email,
-        }
-        token.payload.update(token_payload)
-        return Response({
-            'refresh': str(token),
-            'access': str(token.access_token)
-            }, status=status.HTTP_200_OK)
-
-        
-class PhDLoginView(TokenViewBase):
-    def post(self, request):
-        email = request.data.get('email')
-        password = request.data.get('password')
         phd = PhD.objects.filter(email=email).first()
-        if phd is None or not phd.check_password(password):
-            return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if re.search(r'[0-9]{2}', email):
+            if student is None or not student.check_password(password):
+                return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+            token_payload = {
+                'email': student.email,
+            }
+        else:
+            if phd is None or not phd.check_password(password):
+                return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+            token_payload = {
+                'email': phd.email,
+            }
+            
         token = RefreshToken()
-        token_payload = {
-            'email': phd.email,
-        }
         token.payload.update(token_payload)
         return Response({
             'refresh': str(token),
@@ -180,7 +171,5 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
             return Response({'message': 'Successfully logged out.'}, status=status.HTTP_200_OK)
-        except TokenError as e:
+        except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except InvalidToken:
-            return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)

@@ -14,8 +14,8 @@ class NominateView(APIView):
             return Response({'error': 'Access token is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             decoded_token = AccessToken(access_token)
-        except InvalidToken:
-            return Response({'error': 'Invalid access token.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         email = decoded_token.payload.get('email')
         if not email:
@@ -37,7 +37,7 @@ class NominateView(APIView):
             position=position,
             por_description=por_description,
             manifesto=manifesto,
-            is_approved=False
+            is_approved=None
         )
         return Response({'message': 'You have successfully nominated yourself.'}, status=status.HTTP_201_CREATED)
     
@@ -48,8 +48,8 @@ class NominationListView(APIView):
             return Response({'error': 'Access token is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             decoded_token = AccessToken(access_token)
-        except TokenError:
-            return Response({'error': 'Invalid access token.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         email = decoded_token.payload.get('email')
         if not email:
@@ -75,8 +75,8 @@ class CandidateDetailView(APIView):
             return Response({'error': 'Access token is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             decoded_token = AccessToken(access_token)
-        except TokenError:
-            return Response({'error': 'Invalid access token.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         email = decoded_token.payload.get('email')
         if not email:
@@ -86,7 +86,7 @@ class CandidateDetailView(APIView):
         polling_officer = PollingOfficer.objects.filter(email=email).first()
         
         if not student and not polling_officer:
-            return Response({'error': 'Only students and polling officers can view the nomination list.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Only students and polling officers can view the nomination detail.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             candidate = ContestingCandidate.objects.get(candidate__roll_number=roll_number)
             serialized_candidate = ContestingCandidateSerializer(candidate)
@@ -108,8 +108,8 @@ class NominationApprovalView(APIView):
             return Response({'error': 'Access token is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             decoded_token = AccessToken(access_token)
-        except TokenError:
-            return Response({'error': 'Invalid access token.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         email = decoded_token.payload.get('email')
         if not email:

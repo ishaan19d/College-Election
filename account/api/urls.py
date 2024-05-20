@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import EmailSubmissionView, OTPVerificationView, AccountCreationView, StudentLoginView, PhDLoginView, PollingOfficerLoginView, LogoutView
+from .views import EmailSubmissionView, OTPVerificationView, AccountCreationView, StudentLoginView, PollingOfficerLoginView, LogoutView
 from django.contrib.auth.views import LoginView
 
 urlpatterns = [
@@ -8,7 +8,6 @@ urlpatterns = [
     path('create-account/', AccountCreationView.as_view(), name='account_creation'),
 
     path('student-login/', StudentLoginView.as_view(), name='account_login'),
-    path('phd-login/', PhDLoginView.as_view(), name='account_login'),
     path('logout/', LogoutView.as_view(), name='account_logout'),
 
     path('polling-officer-login/', PollingOfficerLoginView.as_view(), name='polling_officer_login'),
