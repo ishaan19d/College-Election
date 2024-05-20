@@ -14,7 +14,7 @@ class ContestingCandidate(models.Model):
     position = models.CharField(max_length=36,choices=POSITION_CHOICES)
     por_description = models.TextField()
     manifesto = models.FileField(upload_to='manifestos/', null=True, blank=True)
-    is_approved = models.BooleanField(default=None)
+    is_approved = models.BooleanField(default=None, null=True, blank=True)
     vote_count = models.PositiveIntegerField(default=0)
 
     def __str__(self):
@@ -22,4 +22,4 @@ class ContestingCandidate(models.Model):
 
 class Vote(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, to_field='roll_number')
-    candidate = models.ForeignKey(ContestingCandidate, on_delete=models.CASCADE, to_field='candidate')
+    position = models.CharField(max_length=36, choices=POSITION_CHOICES)

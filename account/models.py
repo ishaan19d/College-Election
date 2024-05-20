@@ -1,6 +1,42 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 
+class PollingOfficer(AbstractBaseUser, PermissionsMixin):
+    first_name = models.CharField(max_length=50)
+    middle_name = models.CharField(max_length=50, blank=True)
+    last_name = models.CharField(max_length=50)
+    email = models.EmailField(unique=True)
+    photo = models.ImageField(upload_to='profile_photos', blank=True, null=True)
+    is_staff = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['first_name', 'last_name']
+
+    groups = models.ManyToManyField(
+        'auth.Group',
+        verbose_name='groups',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        related_name='pollingOfficer_set',
+        related_query_name='pollingOfficer',
+    )
+    user_permissions = models.ManyToManyField(
+        'auth.Permission',
+        verbose_name='user permissions',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        related_name='pollingOfficer_set',
+        related_query_name='pollingOfficer',
+    )
+
+    class Meta:
+        verbose_name = 'Polling Officer'
+        verbose_name_plural = 'Polling Officers'
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+
 COURSE_CHOICES = [
     ('B.Tech', 'B.Tech'),
     ('M.Tech', 'M.Tech'),

@@ -4,7 +4,7 @@ from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from account.models import Student,PhD
+from account.models import Student,PhD, PollingOfficer
 from .serializers import StudentSerializer, PhDSerializer
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from rest_framework_simplejwt.views import TokenViewBase
@@ -154,6 +154,23 @@ class PhDLoginView(TokenViewBase):
             'access': str(token.access_token)
             }, status=status.HTTP_200_OK)
     
+class PollingOfficerLoginView(TokenViewBase):
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        polling_officer = PollingOfficer.objects.filter(email=email).first()
+        if polling_officer is None or not polling_officer.check_password(password):
+            return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+        token = RefreshToken()
+        token_payload = {
+            'email': polling_officer.email,
+        }
+        token.payload.update(token_payload)
+        return Response({
+            'refresh': str(token),
+            'access': str(token.access_token)
+            }, status=status.HTTP_200_OK)
+
 class LogoutView(APIView):
     def post(self, request):
         refresh_token = request.data.get('refresh')
