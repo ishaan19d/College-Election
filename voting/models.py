@@ -21,5 +21,5 @@ class ContestingCandidate(models.Model):
         return f"{self.candidate.first_name} {self.candidate.last_name} - {self.position}"
 
 class Vote(models.Model):
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, to_field='roll_number')
+    voterRollNum = models.CharField(max_length=8)
     position = models.CharField(max_length=36, choices=POSITION_CHOICES)

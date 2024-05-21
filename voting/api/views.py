@@ -1,6 +1,6 @@
 from rest_framework.response import Response
 from rest_framework import status
-from account.models import Student, PollingOfficer
+from account.models import Student, PollingOfficer, PhD
 from voting.models import ContestingCandidate, Vote
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
@@ -22,18 +22,24 @@ class NominateView(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can nominate themselves.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can nominate themselves.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if ContestingCandidate.objects.filter(candidate=student).exists():
+        if ContestingCandidate.objects.filter(candidate=student).exists() or ContestingCandidate.objects.filter(candidate=phd_student).exists():
             return Response({'error': 'You have already nominated yourself.'}, status=status.HTTP_400_BAD_REQUEST)
 
         position = request.data.get('position')
         por_description = request.data.get('por_description')
         manifesto = request.data.get('manifesto')
 
+        if student:
+            candidate = student
+        else:
+            candidate = phd_student
+
         ContestingCandidate.objects.create(
-            candidate=student,
+            candidate=candidate,
             position=position,
             por_description=por_description,
             manifesto=manifesto,
@@ -56,10 +62,11 @@ class NominationListView(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
         
         student = Student.objects.filter(email=email).first()
+        phd_student = PhD.objects.filter(email=email).first()
         polling_officer = PollingOfficer.objects.filter(email=email).first()
         
-        if not student and not polling_officer:
-            return Response({'error': 'Only students and polling officers can view the nomination list.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not student and not phd_student and not polling_officer:
+            return Response({'error': 'Only students, PhD students, and polling officers can view the nomination list.'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             candidates = ContestingCandidate.objects.order_by('position')
@@ -83,10 +90,11 @@ class CandidateDetailView(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
         
         student = Student.objects.filter(email=email).first()
+        phd_student = PhD.objects.filter(email=email).first()
         polling_officer = PollingOfficer.objects.filter(email=email).first()
         
-        if not student and not polling_officer:
-            return Response({'error': 'Only students and polling officers can view the nomination detail.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not student and not phd_student and not polling_officer:
+            return Response({'error': 'Only students, PhD students, and polling officers can view the nomination detail.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             candidate = ContestingCandidate.objects.get(candidate__roll_number=roll_number)
             serialized_candidate = ContestingCandidateSerializer(candidate)
@@ -115,9 +123,11 @@ class NominationApprovalView(APIView):
         if not email:
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        student = Student.objects.filter(email=email).first()
+        phd_student = PhD.objects.filter(email=email).first()
         polling_officer = PollingOfficer.objects.filter(email=email).first()
-        if not polling_officer:
-            return Response({'error': 'Only polling officers can approve nominations.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not student and not phd_student and not polling_officer:
+            return Response({'error': 'Only students, PhD students, and polling officers can approve nominations.'}, status=status.HTTP_400_BAD_REQUEST)
         
         is_approved = request.data.get('is_approved')
         if is_approved is not None:
@@ -141,10 +151,11 @@ class PresidentVoteView(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if Vote.objects.filter(student=student, position='President').exists():
+        if Vote.objects.filter(voterRollNum=student.roll_number, position='President').exists() or Vote.objects.filter(voterRollNum=phd_student.roll_number, position='President').exists():
             return Response({'error': 'You have already voted for President.'}, status=status.HTTP_400_BAD_REQUEST)
         
         candidate_roll_number = request.data.get('candidate_roll_number')
@@ -153,7 +164,11 @@ class PresidentVoteView(APIView):
         except ContestingCandidate.DoesNotExist:
             return Response({'error': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        Vote.objects.create(student=student, position='President')
+        if student:
+            Vote.objects.create(voterRollNum=student.roll_number, position='President')
+        elif phd_student:
+            Vote.objects.create(voterRollNum=phd_student.roll_number, position='President')
+        
         candidate.vote_count += 1
         candidate.save()
         return Response({'message': 'You have successfully voted.'}, status=status.HTTP_201_CREATED)
@@ -173,10 +188,11 @@ class VicePresidentVoteView(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if Vote.objects.filter(student=student, position='Vice President').exists():
+        if Vote.objects.filter(voterRollNum=student.roll_number, position='Vice President').exists() or Vote.objects.filter(voterRollNum=phd_student.roll_number, position='Vice President').exists():
             return Response({'error': 'You have already voted for Vice President.'}, status=status.HTTP_400_BAD_REQUEST)
         
         candidate_roll_number = request.data.get('candidate_roll_number')
@@ -185,7 +201,11 @@ class VicePresidentVoteView(APIView):
         except ContestingCandidate.DoesNotExist:
             return Response({'error': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        Vote.objects.create(student=student, position='Vice President')
+        if student:
+            Vote.objects.create(voterRollNum=student.roll_number, position='Vice President')
+        elif phd_student:
+            Vote.objects.create(voterRollNum=phd_student.roll_number, position='Vice President')
+        
         candidate.vote_count += 1
         candidate.save()
         return Response({'message': 'You have successfully voted.'}, status=status.HTTP_201_CREATED)
@@ -205,11 +225,12 @@ class GSCultural(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if Vote.objects.filter(student=student, position='General Secretary - Cultural Board').exists():
-            return Response({'error': 'You have already voted for General Secretary - Cultural Board.'}, status=status.HTTP_400_BAD_REQUEST)
+        if Vote.objects.filter(voterRollNum=student.roll_number, position='General Secretary - Cultural Board').exists() or Vote.objects.filter(voterRollNum=phd_student.roll_number, position='General Secretary - Cultural Board').exists():
+            return Response({'error': 'You have already voted for General Secretary - Cultural Board'}, status=status.HTTP_400_BAD_REQUEST)
         
         candidate_roll_number = request.data.get('candidate_roll_number')
         try:
@@ -217,7 +238,11 @@ class GSCultural(APIView):
         except ContestingCandidate.DoesNotExist:
             return Response({'error': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        Vote.objects.create(student=student, position='General Secretary - Cultural Board')
+        if student:
+            Vote.objects.create(voterRollNum=student.roll_number, position='General Secretary - Cultural Board')
+        elif phd_student:
+            Vote.objects.create(voterRollNum=phd_student.roll_number, position='General Secretary - Cultural Board')
+        
         candidate.vote_count += 1
         candidate.save()
         return Response({'message': 'You have successfully voted.'}, status=status.HTTP_201_CREATED)
@@ -237,11 +262,12 @@ class GSTechnical(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if Vote.objects.filter(student=student, position='General Secretary - Technical Board').exists():
-            return Response({'error': 'You have already voted for General Secretary - Technical Board.'}, status=status.HTTP_400_BAD_REQUEST)
+        if Vote.objects.filter(voterRollNum=student.roll_number, position='General Secretary - Technical Board').exists() or Vote.objects.filter(voterRollNum=phd_student.roll_number, position='General Secretary - Technical Board').exists():
+            return Response({'error': 'You have already voted for General Secretary - Technical Board'}, status=status.HTTP_400_BAD_REQUEST)
         
         candidate_roll_number = request.data.get('candidate_roll_number')
         try:
@@ -249,11 +275,15 @@ class GSTechnical(APIView):
         except ContestingCandidate.DoesNotExist:
             return Response({'error': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        Vote.objects.create(student=student, position='General Secretary - Technical Board')
+        if student:
+            Vote.objects.create(voterRollNum=student.roll_number, position='General Secretary - Technical Board')
+        elif phd_student:
+            Vote.objects.create(voterRollNum=phd_student.roll_number, position='General Secretary - Technical Board')
+        
         candidate.vote_count += 1
         candidate.save()
         return Response({'message': 'You have successfully voted.'}, status=status.HTTP_201_CREATED)
-
+    
 class GSSports(APIView):
     def patch(self, request):
         access_token = request.data.get('access_token')
@@ -269,11 +299,12 @@ class GSSports(APIView):
             return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
         student = Student.objects.filter(email=email).first()
-        if not student:
-            return Response({'error': 'Only students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
+        phd_student = PhD.objects.filter(email=email).first()
+        if not student and not phd_student:
+            return Response({'error': 'Only students and PhD students can vote.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if Vote.objects.filter(student=student, position='General Secretary - Sports Board').exists():
-            return Response({'error': 'You have already voted for General Secretary - Sports Board.'}, status=status.HTTP_400_BAD_REQUEST)
+        if Vote.objects.filter(voterRollNum=student.roll_number, position='General Secretary - Sports Board').exists() or Vote.objects.filter(voterRollNum=phd_student.roll_number, position='General Secretary - Sports Board').exists():
+            return Response({'error': 'You have already voted for General Secretary - Technical Board'}, status=status.HTTP_400_BAD_REQUEST)
         
         candidate_roll_number = request.data.get('candidate_roll_number')
         try:
@@ -281,7 +312,11 @@ class GSSports(APIView):
         except ContestingCandidate.DoesNotExist:
             return Response({'error': 'Candidate not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        Vote.objects.create(student=student, position='General Secretary - Sports Board')
+        if student:
+            Vote.objects.create(voterRollNum=student.roll_number, position='General Secretary - Sports Board')
+        elif phd_student:
+            Vote.objects.create(voterRollNum=phd_student.roll_number, position='General Secretary - Sports Board')
+        
         candidate.vote_count += 1
         candidate.save()
         return Response({'message': 'You have successfully voted.'}, status=status.HTTP_201_CREATED)
