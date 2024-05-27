@@ -11,7 +11,7 @@ class ContestingCandidateListSerializer(serializers.ModelSerializer):
     candidate = StudentListSerializer()
     class Meta:
         model = ContestingCandidate
-        fields = ('candidate','position','is_approved')
+        fields = ('candidate','position','nomination_approved')
 
 class PhDStudentSerializer(serializers.ModelSerializer):
     class Meta:

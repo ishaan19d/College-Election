@@ -6,6 +6,11 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken
 from .serializers import ContestingCandidateSerializer, ContestingCandidateListSerializer, ResultSerializer
 from .utils import sign_vote_count, verify_vote_count, generate_keys
+from django.core.mail import send_mail
+from django.urls import reverse
+from django.core.signing import TimestampSigner
+from django.core.signing import BadSignature
+
 private_key, public_key = generate_keys()
 
 class NominateView(APIView):
@@ -36,6 +41,38 @@ class NominateView(APIView):
 
         if position == 'General Secretary - Welfare Board' and student_type != 'PhD':
             return Response({'error': 'Only PhD students can nominate themselves for General Secretary - Welfare Board.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        faculty_email = request.data.get('faculty_email')
+        student_email = request.data.get('student_email')
+
+        if not faculty_email.endswith('@iiitg.ac.in') or not student_email.endswith('@iiitg.ac.in'):
+            return Response({'error': 'Only IIITG email addresses are allowed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not faculty_email or not student_email:
+            return Response({'error': 'Faculty and student email are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        signer = TimestampSigner()
+
+        faculty_token = signer.sign(f"{faculty_email}:{student.roll_number}")
+        student_token = signer.sign(f"{student_email}:{student.roll_number}")
+
+        try:
+            send_mail(
+                'REQUEST: Faculty Approval for nomination',
+                f'Please click the following link to approve the nomination for {student.first_name} {student.last_name} ({student.roll_number}): {request.build_absolute_uri(reverse("allow-nomination") + "?token=" + faculty_token + "&role=faculty")}',
+                'ishaandas1910@gmail.com',
+                [faculty_email],
+                fail_silently=False,
+            )
+            send_mail(
+                'REQUEST: Endorse My Nomination',
+                f'Please click the following link to approve the nomination for {student.first_name} {student.last_name} ({student.roll_number}): {request.build_absolute_uri(reverse("allow-nomination") + "?token=" + student_token + "&role=student")}',
+                'ishaandas1910@gmail.com',
+                [student_email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         ContestingCandidate.objects.create(
             candidate=student,
@@ -124,9 +161,9 @@ class NominationApprovalView(APIView):
         if not polling_officer:
             return Response({'error': 'Only polling officers can approve nominations.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        is_approved = request.data.get('is_approved')
-        if is_approved is not None:
-            candidate.is_approved = is_approved
+        nomination_approved = request.data.get('nomination_approved')
+        if nomination_approved is not None:
+            candidate.nomination_approved = nomination_approved
             candidate.save()
         
         return Response({'message': 'Candidate\'s nomination updated.'}, status=status.HTTP_200_OK)
@@ -356,3 +393,53 @@ class Results(APIView):
             return Response(result, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class AllowedNominationView(APIView):
+
+    def get(self, request):
+        token = request.query_params.get('token')
+        role = request.query_params.get('role')
+
+        if not token or not role:
+            return Response({'error': 'Token and role are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            signer = TimestampSigner()
+            unsigned_token = signer.unsign(token)
+            email, candidate_roll_number = unsigned_token.split(':')
+            candidate = ContestingCandidate.objects.get(candidate__roll_number=candidate_roll_number)
+        except (BadSignature, ContestingCandidate.DoesNotExist):
+            return Response({'error': 'Invalid or expired token'}, status=status.HTTP_400_BAD_REQUEST)
+
+        candidate_details = ContestingCandidateListSerializer(candidate).data
+
+        return Response(candidate_details, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        token = request.query_params.get('token')
+        role = request.query_params.get('role')
+        approve = request.data.get('approve')
+
+        if not token or not role or approve is None:
+            return Response({'error': 'Token, role, and approval status are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            signer = TimestampSigner()
+            unsigned_token = signer.unsign(token)
+            email, candidate_roll_number = unsigned_token.split(':')
+            candidate = ContestingCandidate.objects.get(candidate__roll_number=candidate_roll_number)
+        except (BadSignature, ContestingCandidate.DoesNotExist):
+            return Response({'error': 'Invalid or expired token'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if approve == True:
+            if role == 'student':
+                candidate.nominated_by = email
+            elif role == 'faculty':
+                candidate.faculty_approval_by = email
+            else:
+                return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            candidate.save()
+            return Response({'success': True}, status=status.HTTP_200_OK)
+        else:
+            return Response({'success': False, 'message': 'Approval not granted'}, status=status.HTTP_200_OK)
