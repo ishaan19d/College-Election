@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import NominateView , NominationListView, CandidateDetailView, NominationApprovalView, PresidentVoteView, VicePresidentVoteView, GSCultural, GSSports, GSTechnical
+from .views import NominateView , NominationListView, CandidateDetailView, NominationApprovalView, PresidentVoteView, VicePresidentVoteView, GSCultural, GSSports, GSTechnical, Results
 
 urlpatterns = [
     path('nominate/', NominateView.as_view(), name='nominate'),
@@ -14,4 +14,7 @@ urlpatterns = [
     path('gs-cultural-vote/', GSCultural.as_view(), name='gs-cultural-vote'),
     path('gs-sports-vote/', GSSports.as_view(), name='gs-sports-vote'),
     path('gs-technical-vote/', GSTechnical.as_view(), name='gs-technical-vote'),
+    path('gs-welfare-vote/', GSTechnical.as_view(), name='gs-welfare-vote'),
+
+    path('results/',Results.as_view(), name='results'),
 ]

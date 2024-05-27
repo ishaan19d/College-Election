@@ -4,11 +4,12 @@ from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from account.models import Student,PhD, PollingOfficer
-from .serializers import StudentSerializer, PhDSerializer
+from account.models import Student, GradStudent, PhDStudent, PollingOfficer
+from .serializers import GradStudentSerializer, PhDSerializer, StudentPhotoSerializer
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
 from rest_framework_simplejwt.views import TokenViewBase
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import make_password
 
 class EmailSubmissionView(APIView):
     def post(self, request):
@@ -18,10 +19,10 @@ class EmailSubmissionView(APIView):
             return Response({'error': 'Please provide a valid college email address.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if re.search(r'[0-9]{2}', email):
-            if Student.objects.filter(email=email).exists():
+            if GradStudent.objects.filter(email=email).exists():
                 return Response({'error': 'Email already registered.'}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            if PhD.objects.filter(email=email).exists():
+            if PhDStudent.objects.filter(email=email).exists():
                 return Response({'error': 'Email already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
         otp = random.randint(100000, 999999)
@@ -96,7 +97,7 @@ class AccountCreationView(APIView):
             if course_type == 'b':
                 data['course'] = 'B.Tech'
                 data['graduating_year'] = year + 2004
-                serializer = StudentSerializer(data=data)
+                serializer = GradStudentSerializer(data=data)
                 if serializer.is_valid():
                     serializer.save()
                     return Response({'message': 'Account created successfully.'}, status=status.HTTP_201_CREATED)
@@ -104,7 +105,7 @@ class AccountCreationView(APIView):
             elif course_type == 'm':
                 data['course'] = 'M.Tech'
                 data['graduating_year'] = year + 2002
-                serializer = StudentSerializer(data=data)
+                serializer = GradStudentSerializer(data=data)
                 if serializer.is_valid():
                     serializer.save()
                     return Response({'message': 'Account created successfully.'}, status=status.HTTP_201_CREATED)
@@ -122,36 +123,47 @@ class StudentLoginView(TokenViewBase):
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
-        student = Student.objects.filter(email=email).first()
-        phd = PhD.objects.filter(email=email).first()
 
-        if re.search(r'[0-9]{2}', email):
-            if student is None or not student.check_password(password):
-                return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
-            token_payload = {
-                'email': student.email,
-            }
+        try:
+            student = Student.objects.get(email=email)
+        except Student.DoesNotExist:
+            return Response({'error': 'Invalid email.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not check_password(password, student.password):
+            return Response({'error': 'Invalid password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if isinstance(student.get_real_instance(), GradStudent):
+            student_type = 'Grad'
+        elif isinstance(student.get_real_instance(), PhDStudent):
+            student_type = 'PhD'
         else:
-            if phd is None or not phd.check_password(password):
-                return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
-            token_payload = {
-                'email': phd.email,
-            }
-            
+            print("The student is neither a GradStudent nor a PhDStudent.")
+        token_payload = {
+            'email': student.email,
+            'student_type': student_type
+        }
+
         token = RefreshToken()
         token.payload.update(token_payload)
+
         return Response({
             'refresh': str(token),
             'access': str(token.access_token)
-            }, status=status.HTTP_200_OK)
+        }, status=status.HTTP_200_OK)
     
 class PollingOfficerLoginView(TokenViewBase):
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
-        polling_officer = PollingOfficer.objects.filter(email=email).first()
-        if polling_officer is None or not polling_officer.check_password(password):
-            return Response({'error': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            polling_officer = PollingOfficer.objects.get(email=email)
+        except PollingOfficer.DoesNotExist:
+            return Response({'error': 'Invalid email.'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if not check_password(password,polling_officer.password):
+            return Response({'error': 'Invalid password.'}, status=status.HTTP_401_UNAUTHORIZED)
+        
         token = RefreshToken()
         token_payload = {
             'email': polling_officer.email,
@@ -173,3 +185,86 @@ class LogoutView(APIView):
             return Response({'message': 'Successfully logged out.'}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ForgotPassword(APIView):
+    def post(self,request):
+        email = request.data.get('email')
+        acc_type = request.data.get('acc_type')
+        if not email or not acc_type:
+            return Response({'error': 'Email and account type is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            if(acc_type == 'student'):
+                Student.objects.get(email=email)
+            elif(acc_type == 'polling_officer'):
+                PollingOfficer.objects.get(email=email)
+        except:
+            return Response({'error': 'Account not found.'}, status=status.HTTP_404_NOT_FOUND)
+        otp = random.randint(100000, 999999)
+        send_mail(
+            'OTP to change password',
+            f'Your OTP is: {otp}',
+            'ishaandas1910@gmail.com',
+            [email],
+            fail_silently=False,
+        )
+        token_payload = {
+            'email': email,
+            'otp': str(otp),
+            'acc_type': acc_type,
+        }
+        token = RefreshToken()
+        token_payload = {
+            'email':email,
+            'otp':str(otp),
+            'acc_type':acc_type,
+        }
+        token.payload.update(token_payload)
+        token_str = str(token.access_token)
+
+        return Response({'token': token_str}, status=status.HTTP_200_OK)
+    
+class ResetPassword(APIView):
+    def patch(self, request):
+        token_str = request.data.get('token')
+        otp = request.data.get('otp')
+
+        try:
+            token = AccessToken(token_str)
+            payload = token.payload
+            stored_otp = payload.get('otp')
+            if str(stored_otp) == otp:
+                if(payload.get('acc_type') == 'student'):
+                    student = Student.objects.get(email=payload.get('email'))
+                    student.password = make_password(request.data.get('password'))
+                    student.save()
+                elif(payload.get('acc_type') == 'polling_officer'):
+                    polling_officer = PollingOfficer.objects.get(email=payload.get('email'))
+                    polling_officer.password = make_password(request.data.get('password'))
+                    polling_officer.save()
+                return Response({'message': 'Password changes successfully.'}, status=status.HTTP_200_OK)
+        except Exception:
+                pass
+        return Response({'error': 'Invalid OTP or token.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+class ChangeProfilePhoto(APIView):
+    def patch(self, request):
+        access_token = request.data.get('access_token')
+        if not access_token:
+            return Response({'error': 'Access token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            decoded_token = AccessToken(access_token)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        email = decoded_token.payload.get('email')
+        if not email:
+            return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            student = Student.objects.filter(email=email).first()
+            serializer = StudentPhotoSerializer(student, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'message': 'Photo updated successfully.'}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Student.DoesNotExist:
+            return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
